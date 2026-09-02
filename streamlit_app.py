@@ -296,7 +296,7 @@ with col_right:
 st.divider()
 
 # ── ABOUT SECTION BELOW ────────────────────────────────────
-with st.expander("ℹ️ About DSAT — click to expand"):
+with st.expander("ℹ️ About DSAT — click to expand -- update??"):
     st.markdown("""
 ## About DSAT
 
