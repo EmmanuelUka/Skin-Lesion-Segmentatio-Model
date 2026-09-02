@@ -240,75 +240,78 @@ def make_figure(img, pred, binary, uncertainty):
 # ── UI ─────────────────────────────────────────────────────
 st.title("🔬 DSAT — Skin Lesion Segmentation")
 st.markdown("""
-**Uncertainty-Aware Dermoscopic Segmentation**
-via Dual Attention and Soft Multi-Annotator Supervision
+## About DSAT
 
-Trained on **IMA++** — 14,967 images · 16 annotators · 17,684 masks
-""")
+DSAT (Dual Attention Self-Attention Transformer) is a
+deep learning model for skin lesion segmentation trained
+on the IMA++ dataset — the largest publicly available
+multi-annotator dermoscopic segmentation dataset
+containing 14,967 images annotated by 16 clinical experts.
 
-# metrics row
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("IAA Gap", "−0.0025", "Exceeds human agreement")
-col2.metric("ECE", "0.0401", "Well calibrated")
-col3.metric("Wilcoxon p", "0.0004", "Statistically significant")
-col4.metric("Parameters", "80.8M", "Full architecture")
+### Input
+A standard dermoscopic photograph of a skin lesion,
+resized to 224×224 pixels. The model accepts any
+dermoscopy image in JPG or PNG format.
 
-st.divider()
+### What happens inside
+The image passes through four sequential stages:
 
-# upload section
-col_left, col_right = st.columns([1, 2])
+1. **InceptionV3 Encoder** — extracts visual features
+   at five spatial scales, from fine edge detail to deep
+   semantic lesion representations. Pretrained on
+   ImageNet and fine-tuned on IMA++.
 
-with col_left:
-    st.subheader("Upload Image")
-    uploaded = st.file_uploader(
-        "Upload a dermoscopy image",
-        type=["jpg", "jpeg", "png"],
-        help="Best results with dermoscopic images"
-    )
+2. **CBAM Dual Attention** — applied at the bottleneck,
+   channel attention identifies which of the 2048 feature
+   channels are most diagnostically relevant, followed by
+   spatial attention identifying which spatial regions
+   contain the lesion.
 
-    if uploaded:
-        image = Image.open(uploaded).convert("RGB")
-        st.image(image, caption="Uploaded image",
-                 use_column_width=True)
+3. **Transformer Self-Attention** — the bottleneck is
+   tokenised into 25 patch tokens and processed through
+   two transformer encoder layers, allowing every spatial
+   region to attend to every other simultaneously for
+   global lesion context modeling.
 
-        st.info("""
-        **Output guide:**
-        - 🔴 Red = high lesion confidence
-        - 🟡 Yellow = uncertain boundary
-        - 🟢 Green = background
-        - ☀️ Bright uncertainty = model unsure
-        """)
+4. **U-Net Decoder** — progressively reconstructs the
+   full 224×224 resolution using skip connections from
+   the encoder, combining deep semantic features with
+   fine spatial boundary detail at each scale.
 
-with col_right:
-    if uploaded:
-        with st.spinner("Running DSAT segmentation..."):
-            model, device = load_model()
-            img, pred, binary, uncertainty = \
-                run_inference(image, model, device)
-            buf = make_figure(
-                img, pred, binary, uncertainty
-            )
+### Output
+A 224×224 **confidence map** where each pixel value
+represents the model's predicted probability that the
+pixel belongs to the lesion:
 
-        st.subheader("Segmentation Output")
-        st.image(buf, use_column_width=True)
+- 🔴 **Red (near 1.0)** — model is confident this is lesion
+- 🟡 **Yellow (near 0.5)** — model is uncertain — genuine boundary ambiguity
+- 🟢 **Green (near 0.0)** — model is confident this is healthy skin
 
-        # download button
-        st.download_button(
-            label="Download confidence map",
-            data=buf,
-            file_name="dsat_confidence_map.png",
-            mime="image/png"
-        )
+Unlike conventional segmentation models that output a
+hard binary mask, DSAT outputs a continuous probability
+map trained on soft labels derived from averaging
+multiple expert annotator masks. This means the model
+learns to be uncertain at exactly the boundary regions
+where human experts disagreed — producing clinically
+meaningful uncertainty estimates alongside the
+segmentation boundary.
 
-st.divider()
-st.markdown("""
-**About DSAT**
+### Key results
+| Metric | Value | Meaning |
+|--------|-------|---------|
+| IAA Gap | −0.0025 | Exceeds human inter-annotator agreement |
+| ECE | 0.0401 | Well calibrated (threshold < 0.05) |
+| Brier Score | 0.0281 | Strong probabilistic accuracy |
+| Wilcoxon p | 0.0004 | Statistically significant improvement |
 
-DSAT (Dual Attention Self-Attention Transformer) is trained using soft
-labels derived from pixel-wise averaging of multiple expert annotator
-masks, teaching the model to output intermediate confidence values at
-contested boundaries rather than committing to a hard binary decision.
+### Research context
+DSAT establishes the first external segmentation
+benchmark on IMA++ and demonstrates that learning from
+multiple expert annotations enables the model to capture
+annotation uncertainty and produce predictions that
+better reflect expert clinical consensus — a more
+meaningful objective for clinical deployment than
+maximising a single performance metric.
 
-[📄 Paper](#) · [💻 GitHub](https://github.com/EmmanuelUka) ·
-[🎓 Kent State University](#)
+*Emmanuel Uka · Kent State University · 2026*
 """)
