@@ -271,7 +271,7 @@ with col_left:
     if uploaded:
         image = Image.open(uploaded).convert("RGB")
         st.image(image, caption="Uploaded image",
-                 use_column_width=True)
+                 use_container_width=True)
         st.info("""
         **Output guide:**
         🔴 Red = high lesion confidence
@@ -296,7 +296,7 @@ with col_right:
             )
 
         st.subheader("Segmentation Output")
-        st.image(buf, use_column_width=True)
+        st.image(buf, use_container_width=True)
 
         st.download_button(
             label="⬇ Download confidence map",
