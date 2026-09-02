@@ -127,46 +127,34 @@ class DSATSegmentation(nn.Module):
                             align_corners=False)
         return self.head(out)
 
-
+#https://huggingface.co/emmanueluc322/DSAT-Skin-Lesion-Segmentation/resolve/main/dsat_soft_label_best.pth
 
 @st.cache_resource
 def load_model():
-    import requests
+    from huggingface_hub import hf_hub_download
     import os
 
     device    = torch.device("cpu")
     ckpt_path = "dsat_soft_label_best.pth"
 
-    # download checkpoint from Hugging Face if not cached
     if not os.path.exists(ckpt_path):
         with st.spinner("Downloading model weights..."):
-            url = "https://huggingface.co/emmanueluc322/DSAT-Skin-Lesion-Segmentation/resolve/main/dsat_soft_label_best.zip"
-            response = requests.get(url, stream=True)
-            total    = int(response.headers.get(
-                "content-length", 0
-            ))
-            progress = st.progress(0)
-            downloaded = 0
-
-            with open(ckpt_path, "wb") as f:
-                for chunk in response.iter_content(
-                    chunk_size=8192
-                ):
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    if total:
-                        progress.progress(
-                            min(downloaded / total, 1.0)
-                        )
-            progress.empty()
+            ckpt_path = hf_hub_download(
+                repo_id="emmanueluc322/DSAT-Skin-Lesion-Segmentation",
+                filename="dsat_soft_label_best.pth",
+                local_dir="."
+            )
 
     model = DSATSegmentation(num_classes=1)
     model.load_state_dict(
-        torch.load(ckpt_path, map_location="cpu")
+        torch.load(
+            ckpt_path,
+            map_location="cpu",
+            weights_only=True
+        )
     )
     model.eval()
     return model, device
-
 
 # ── inference ──────────────────────────────────────────────
 def run_inference(image_pil, model, device):
