@@ -130,72 +130,34 @@ class DSATSegmentation(nn.Module):
 #https://huggingface.co/emmanueluc322/DSAT-Skin-Lesion-Segmentation/resolve/main/dsat_soft_label_best.pth
 @st.cache_resource
 def load_model():
-    import requests
+    from huggingface_hub import hf_hub_download
+    from safetensors.torch import load_file
     import os
 
     device    = torch.device("cpu")
-    ckpt_path = "dsat_soft_label_best.pth"
+    ckpt_path = "dsat_soft_label_best.safetensors"
 
     if not os.path.exists(ckpt_path):
-        with st.spinner("Downloading model weights..."):
-
-            url = "https://huggingface.co/emmanueluc322/DSAT-Skin-Lesion-Segmentation/resolve/main/dsat_soft_label_best.pth"
-
-            # stream download to avoid memory issues
-            # with large files
-            response = requests.get(
-                url, stream=True
+        with st.spinner(
+            "Downloading model weights... "
+            "this may take a minute"
+        ):
+            ckpt_path = hf_hub_download(
+                repo_id="emmanueluc322/"
+                        "DSAT-Skin-Lesion-Segmentation",
+                filename="dsat_soft_label_best.safetensors",
+                local_dir="."
             )
-            response.raise_for_status()
+            st.success("Download complete")
 
-            total      = int(response.headers.get(
-                "content-length", 0
-            ))
-            downloaded = 0
-            progress   = st.progress(0, text="Downloading model...")
-
-            with open(ckpt_path, "wb") as f:
-                for chunk in response.iter_content(
-                    chunk_size=1024 * 1024  # 1MB chunks
-                ):
-                    if chunk:
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        if total:
-                            pct = min(
-                                downloaded / total, 1.0
-                            )
-                            progress.progress(
-                                pct,
-                                text=f"Downloading... "
-                                     f"{downloaded/1e6:.0f}/"
-                                     f"{total/1e6:.0f} MB"
-                            )
-
-            progress.empty()
-
-            # verify file size after download
-            size_mb = os.path.getsize(ckpt_path) / 1e6
-            st.write(f"Downloaded: {size_mb:.1f} MB")
-
-            if size_mb < 10:
-                st.error(
-                    "File too small — download may have "
-                    "failed. Check your HF URL."
-                )
-                os.remove(ckpt_path)
-                return None, device
+    # safetensors loads cleanly — no corruption issues
+    state_dict = load_file(ckpt_path, device="cpu")
 
     model = DSATSegmentation(num_classes=1)
-    model.load_state_dict(
-        torch.load(
-            ckpt_path,
-            map_location="cpu",
-            weights_only=True
-        )
-    )
+    model.load_state_dict(state_dict)
     model.eval()
     return model, device
+
 
 # ── inference ──────────────────────────────────────────────
 def run_inference(image_pil, model, device):
