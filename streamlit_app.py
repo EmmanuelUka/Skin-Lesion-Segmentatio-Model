@@ -128,10 +128,9 @@ class DSATSegmentation(nn.Module):
         return self.head(out)
 
 #https://huggingface.co/emmanueluc322/DSAT-Skin-Lesion-Segmentation/resolve/main/dsat_soft_label_best.pth
-
 @st.cache_resource
 def load_model():
-    from huggingface_hub import hf_hub_download
+    import requests
     import os
 
     device    = torch.device("cpu")
@@ -139,11 +138,53 @@ def load_model():
 
     if not os.path.exists(ckpt_path):
         with st.spinner("Downloading model weights..."):
-            ckpt_path = hf_hub_download(
-                repo_id="emmanueluc322/DSAT-Skin-Lesion-Segmentation",
-                filename="dsat_soft_label_best.pth",
-                local_dir="."
+
+            url = "https://huggingface.co/emmanueluc322/DSAT-Skin-Lesion-Segmentation/resolve/main/dsat_soft_label_best.pth"
+
+            # stream download to avoid memory issues
+            # with large files
+            response = requests.get(
+                url, stream=True
             )
+            response.raise_for_status()
+
+            total      = int(response.headers.get(
+                "content-length", 0
+            ))
+            downloaded = 0
+            progress   = st.progress(0, text="Downloading model...")
+
+            with open(ckpt_path, "wb") as f:
+                for chunk in response.iter_content(
+                    chunk_size=1024 * 1024  # 1MB chunks
+                ):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total:
+                            pct = min(
+                                downloaded / total, 1.0
+                            )
+                            progress.progress(
+                                pct,
+                                text=f"Downloading... "
+                                     f"{downloaded/1e6:.0f}/"
+                                     f"{total/1e6:.0f} MB"
+                            )
+
+            progress.empty()
+
+            # verify file size after download
+            size_mb = os.path.getsize(ckpt_path) / 1e6
+            st.write(f"Downloaded: {size_mb:.1f} MB")
+
+            if size_mb < 10:
+                st.error(
+                    "File too small — download may have "
+                    "failed. Check your HF URL."
+                )
+                os.remove(ckpt_path)
+                return None, device
 
     model = DSATSegmentation(num_classes=1)
     model.load_state_dict(
